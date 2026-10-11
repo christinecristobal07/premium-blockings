@@ -53,7 +53,7 @@ export default function DestinationHeader({ pkg, holdCount, onChanged, onDeleted
 
   return (
     <div className="pkg">
-      <h2>{pkg.name}</h2><span className="code">CODE: {pkg.code}</span>
+      <h2>{pkg.name}</h2><span className="codebadge">CODE: {pkg.code}</span>
       <span className="act">
         <button className="mini" onClick={() => { setMsg({ kind: '', text: '' }); setDraft({ ...pkg.raw }); }}>Edit destination</button>
         <button className="mini" onClick={remove}>Delete destination</button>

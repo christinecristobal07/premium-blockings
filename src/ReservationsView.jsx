@@ -55,7 +55,7 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
         <form id="f" onSubmit={onReserve}>
           <label className="wide">Departure
             <select id="fDep" value={formDep} onChange={upd('dep')}>
-              {allDeps.map((d) => <option key={d.id} value={d.id}>{d.pkg.tab} · {d.label} ({stats(d, holds).avail} left)</option>)}
+              {allDeps.map((d) => <option key={d.id} value={d.id}>{d.pkg.tab} · {d.label}{d.code ? ` · CODE ${d.code}` : ''} ({stats(d, holds).avail} left)</option>)}
             </select>
           </label>
           <label>Number of pax<input id="fPax" type="number" min="1" value={form.pax} onChange={upd('pax')} /></label>
@@ -71,7 +71,7 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
           <button className="btn" disabled={busy || !allDeps.length}>{busy ? 'Saving…' : 'Reserve slots'}</button>
           {sel && (
             <div className="note">
-              {sel.pkg.tab} · {sel.label}: {selStats.avail} of {selStats.cap} slot(s) available · ₱{sel.price.toLocaleString()} / pax
+              {sel.code && <><span className="codebadge">CODE: {sel.code}</span>{' '}</>}{sel.pkg.tab} · {sel.label}: {selStats.avail} of {selStats.cap} slot(s) available · ₱{sel.price.toLocaleString()} / pax
             </div>
           )}
           <div className={`msg ${msg.kind}`} role="status">{msg.text}</div>
@@ -99,7 +99,7 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
         </div>
         <div className="tbl">
           <table>
-            <thead><tr><th>Destination</th><th>Travel date</th><th>Pax</th><th>Lead name</th><th>Agent</th><th>Status</th><th>Date of hold</th><th>Hold expires</th></tr></thead>
+            <thead><tr><th>Destination</th><th>Code</th><th>Travel date</th><th>Pax</th><th>Lead name</th><th>Agent</th><th>Status</th><th>Date of hold</th><th>Hold expires</th></tr></thead>
             <tbody>
               {list.length ? list.map((h) => {
                 const d = depById(h.dep);
@@ -107,13 +107,13 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
                 const sc = h.status === 'FULL PAYMENT' ? 's-FULL' : `s-${h.status}`;
                 return (
                   <tr key={h.id} className={h.status === 'CANCEL' ? 'cancel' : ''}>
-                    <td>{d.pkg.tab}</td><td>{d.label}</td><td>{h.pax} PAX</td><td>{h.lead}</td><td>{h.agent || '—'}</td>
+                    <td>{d.pkg.tab}</td><td>{d.code ? <span className="codebadge">{d.code}</span> : '—'}</td><td>{d.label}</td><td>{h.pax} PAX</td><td>{h.lead}</td><td>{h.agent || '—'}</td>
                     <td className="st"><span className={`pill ${sc}`}>{h.status}</span></td>
                     <td>{fmtD(h.held)}</td>
                     <td>{!due ? '—' : due < isoStr(today) ? <span className="pill s-CANCEL">EXPIRED {fmtD(due)}</span> : <span className="due">{fmtD(due)}</span>}</td>
                   </tr>
                 );
-              }) : <tr><td colSpan={8} className="note">No reservations match these filters.</td></tr>}
+              }) : <tr><td colSpan={9} className="note">No reservations match these filters.</td></tr>}
             </tbody>
           </table>
         </div>

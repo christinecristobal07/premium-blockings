@@ -217,7 +217,6 @@ It will be removed from this list. You can restore it from History.`)) return;
                   const s = stats(d, holds);
                   const pill = s.avail === 0 ? ['p-full', 'SOLD OUT'] : s.avail <= 4 ? ['p-low', `${s.avail} LEFT`] : ['p-open', 'OPEN'];
                   const w = (v) => `${s.cap ? (v / s.cap) * 100 : 0}%`;
-                  const showCode = new Set(pkg.deps.map((x) => x.code)).size > 1;
                   return (
                     <div key={d.id} className="depwrap">
                     <button className="dep" aria-pressed={selDep === d.id} onClick={() => setSelDep(selDep === d.id ? null : d.id)}>
@@ -229,7 +228,7 @@ It will be removed from this list. You can restore it from History.`)) return;
                         <div><b>{s.paid}</b>Paid</div><div><b>{s.held}</b>On hold</div><div><b>{s.avail}</b>Available</div>
                       </div>
                       <div style={{ display: 'grid', gap: 2 }}>
-                        {showCode && d.code && <span className="code">{d.code}{d.itin ? ` · ${d.itin}` : ''}</span>}
+                        {d.code && <span><span className="codebadge">CODE: {d.code}</span>{d.itin && <span className="left"> {d.itin}</span>}</span>}
                         {!!pkg.rooming && <span className="left">Rooming list due {fmtD(addDays(d.date, -pkg.rooming))}</span>}
                         {d.fullBy && <span className="left">Full slot: {d.fullBy}</span>}
                         {d.remarks && <span className="left">{d.remarks}</span>}
