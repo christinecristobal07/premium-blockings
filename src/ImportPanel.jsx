@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { parseTracker } from './lib/parseTracker.js';
-import { fetchSheet, importDestination } from './lib/api.js';
+import { createDestination, fetchSheet, importDestination } from './lib/api.js';
 
 const titleCase = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -35,8 +35,8 @@ export default function ImportPanel({ today, existing, onClose, onImported }) {
   function pickTab(book, t, src = sourceUrl) {
     setTab(t);
     // A generic tab like "Sheet1" says nothing; use the file name ("HONGKONG 2027.xlsx") instead.
-    const base = /^sheets*d*$/i.test(t.trim()) && src && !/^https?:/i.test(src)
-      ? src.replace(/.xlsx?$/i, '').replace(/s*(d+)$/, '')
+    const base = /^sheet\s*\d*$/i.test(t.trim()) && src && !/^https?:/i.test(src)
+      ? src.replace(/\.xlsx?$/i, '').replace(/\s*\(\d+\)$/, '')
       : t.replace(/TRACKER/i, '');
     const nm = titleCase(base.trim()) || t.trim();
     setName(nm);
@@ -63,6 +63,17 @@ export default function ImportPanel({ today, existing, onClose, onImported }) {
       catch { setErr('Could not read this file. Download it again from Google Sheets as .xlsx and retry.'); }
     };
     rd.readAsArrayBuffer(f);
+  }
+
+  // For a tracker the importer cannot read: make the destination by hand, then add departures and holds in the portal.
+  async function addByHand() {
+    const n = name.trim();
+    if (!n) return setErr('Type the name of the destination first.');
+    setBusy('Saving…'); setErr('');
+    try {
+      const id = await createDestination(n);
+      onImported(id, `Added ${n}. Now click "+ Add departure" to enter its dates and slots.`);
+    } catch (e) { setErr(`Could not save to Supabase: ${e.message}`); } finally { setBusy(''); }
   }
 
   async function add() {
@@ -137,6 +148,10 @@ export default function ImportPanel({ today, existing, onClose, onImported }) {
       {res && !res.ok && (
         <ul className="warns" style={{ background: 'var(--bad-bg)', color: 'var(--bad)' }}>
           {res.errors.map((e) => <li key={e}>{e}</li>)}
+          <li style={{ listStyle: 'none', marginTop: 8 }}>
+            Not a standard tracker? <button className="mini" type="button" onClick={addByHand} disabled={!!busy}>Create "{name.trim() || 'destination'}" by hand</button>{' '}
+            and type its departures and holds in the portal.
+          </li>
         </ul>
       )}
       {res?.ok && (

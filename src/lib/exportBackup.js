@@ -35,7 +35,7 @@ export async function exportBackup() {
   const holdRows = holds.map((h) => {
     const dp = depById.get(h.departure_id), ds = destById.get(dp?.destination_id);
     return {
-      Destination: ds?.name, Archived: ds?.archived_at ? 'YES' : '', Departure: dp?.label, 'Travel date': dp?.depart_on,
+      Destination: ds?.name, Archived: ds?.archived_at ? 'YES' : '', Deleted: h.archived_at ? 'YES' : '', Departure: dp?.label, 'Travel date': dp?.depart_on,
       'Hold by': h.hold_by, Pax: h.pax, 'Lead name': h.lead_name, Agent: h.agent, Status: h.status,
       'Date of hold': h.held_on, Released: h.released_on, Remarks: h.remarks, 'Import note': h.flag,
       'Hold ID': h.id, 'Departure ID': h.departure_id,
@@ -43,7 +43,7 @@ export async function exportBackup() {
   });
 
   const depRows = deps.map((d) => {
-    const ds = destById.get(d.destination_id), mine = holds.filter((h) => h.departure_id === d.id && live(h));
+    const ds = destById.get(d.destination_id), mine = holds.filter((h) => h.departure_id === d.id && live(h) && !h.archived_at);
     const paid = mine.filter(paidSt).reduce((a, h) => a + h.pax, 0);
     const held = mine.filter((h) => h.status === 'HOLD').reduce((a, h) => a + h.pax, 0);
     const cap = d.blocked + (d.manual || 0);

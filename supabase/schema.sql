@@ -202,3 +202,9 @@ end $$;
 revoke delete on destinations, departures, holds, agents, audit_log from anon, authenticated;
 revoke insert, update on audit_log from anon, authenticated;
 revoke execute on function audit_row() from public, anon, authenticated;
+
+-- "Delete" on a hold hides it (only allowed once it is released / CANCEL, so it never takes up slots).
+-- Restorable from History; the change is in audit_log like everything else.
+alter table holds add column if not exists archived_at timestamptz;
+alter table holds drop constraint if exists holds_archived_only_cancel;
+alter table holds add constraint holds_archived_only_cancel check (archived_at is null or status = 'CANCEL');

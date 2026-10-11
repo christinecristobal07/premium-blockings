@@ -26,7 +26,7 @@ export async function loadAll() {
       })),
     });
     for (const x of deps)
-      for (const h of x.holds)
+      for (const h of x.holds.filter((y) => !y.archived_at))
         holds.push({
           id: h.id, dep: x.id, by: h.hold_by, pax: h.pax, lead: h.lead_name, agent: h.agent, status: h.status,
           held: h.held_on, released: h.released_on || '', remarks: h.remarks || '', flag: h.flag || '',
@@ -66,8 +66,39 @@ export async function deleteAgent(id) {
   return must(await supabase.from('agents').update({ archived_at: new Date().toISOString() }).eq('id', id));
 }
 
+// "Delete" hides a released (CANCEL) hold. It stays in the database and can be restored from History.
+export async function deleteHold(id) {
+  return must(await supabase.from('holds').update({ archived_at: new Date().toISOString() }).eq('id', id));
+}
+
+export async function restoreHold(id) {
+  return must(await supabase.from('holds').update({ archived_at: null }).eq('id', id));
+}
+
+export async function loadDeletedHolds() {
+  return must(await supabase.from('holds').select('id, lead_name, pax, agent, archived_at, departures(label, destinations(name))').not('archived_at', 'is', null).order('archived_at', { ascending: false }));
+}
+
 export async function loadArchived() {
   return must(await supabase.from('destinations').select('id, name, code, archived_at').not('archived_at', 'is', null).order('archived_at', { ascending: false }));
+}
+
+const dupDate = (error) => error?.code === '23505' ? new Error('This destination already has a departure on that date.') : error && new Error(error.message);
+
+// fields: depart_on, label, price, blocked, manual, code, itin, full_by, remarks
+export async function addDeparture(destinationId, fields) {
+  const { error } = await supabase.from('departures').insert({ destination_id: destinationId, ...fields });
+  if (error) throw dupDate(error);
+}
+
+export async function updateDeparture(id, fields) {
+  const { error } = await supabase.from('departures').update(fields).eq('id', id);
+  if (error) throw dupDate(error);
+}
+
+// A destination typed in by hand (for trackers the importer cannot read). Departures are added in the portal.
+export async function createDestination(name) {
+  return must(await supabase.from('destinations').insert({ name, source_tab: 'manual' }).select('id').single()).id;
 }
 
 // patch keys: name, itinerary, code, dest, rooming_days

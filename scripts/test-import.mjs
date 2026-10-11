@@ -50,5 +50,23 @@ for (const n of wb.SheetNames) {
   console.log(`  ${r.ok ? 'OK  ' : 'STOP'}  ${n.trim()}: ${r.ok ? `${r.deps.length} departure(s), ${r.holds.length} hold(s), ${r.warns.length} warning(s)` : r.errors.join(' ')}`);
   if (r.ok && r.warns.length) r.warns.forEach((w) => console.log('          - ' + w));
 }
+// Korea 2027 (optional second file): different layout. "DEPARTURE DATE 2027", "SLOT BLOCKED" under the header,
+// a second undated 31-slot block, hold list with "DEPARTURE" and dates without a year, a row with no lead name.
+if (process.argv[3]) {
+  const kwb = XLSX.read(readFileSync(process.argv[3]), { type: 'buffer' });
+  const kr = parseTracker(XLSX.utils.sheet_to_json(kwb.Sheets[kwb.SheetNames[0]], { header: 1, raw: true, defval: '' }), new Date(2026, 9, 11));
+  console.log('\nKorea 2027:');
+  check('Korea parses', kr.ok, kr.errors.join('; '));
+  check('Korea has 3 departures (no "DATE OF HOLD" row read as a date)', kr.deps.length === 3 && kr.departed === 0, kr.deps.map((d) => d.label).join(', '));
+  const want = { '2027-01-19': [62, 20, 35499], '2027-05-13': [31, 31, 33499], '2027-06-07': [31, 31, 33499] };
+  for (const d of kr.deps) {
+    const [b, a, pr] = want[d.date] || [];
+    check(`Korea ${d.label}: ${b} slots, ${a} left, PHP ${pr}`, d.blocked === b && avail(d, kr) === a && d.price === pr, `${d.blocked} slots, ${avail(d, kr)} left, PHP ${d.price}`);
+  }
+  check('Korea codes UKR13B1 / UKR14B1', kr.deps.map((d) => d.code).join() === 'UKR13B1,UKR14B1,UKR14B1', kr.deps.map((d) => d.code).join());
+  check('Korea keeps the hold with no lead name', kr.holds.some((h) => h.lead === '(no lead name)' && h.pax === 4));
+  check('Korea adds 18 unnamed paid pax from the tracker', kr.holds.some((h) => h.lead.startsWith('PAID PER TRACKER') && h.pax === 18));
+}
+
 console.log(fails ? `\n${fails} check(s) failed.` : '\nAll checks passed.');
 process.exit(fails ? 1 : 0);

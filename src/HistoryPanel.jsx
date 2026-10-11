@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { loadArchived, loadHistory, restoreDestination } from './lib/api.js';
+import { loadArchived, loadDeletedHolds, loadHistory, restoreDestination, restoreHold } from './lib/api.js';
 
 const TABLE = { destinations: 'Destination', departures: 'Departure', holds: 'Hold', agents: 'Agent' };
 const SKIP = new Set(['id', 'created_at', 'imported_at', 'departure_id', 'destination_id', 'flag']);
@@ -14,7 +14,7 @@ function action(r) {
   if (r.action === 'INSERT') return 'Added';
   if (r.action === 'DELETE') return 'Deleted';
   const was = r.old_data?.archived_at, now = r.new_data?.archived_at;
-  if (!was && now) return r.table_name === 'agents' ? 'Deleted from list' : 'Archived';
+  if (!was && now) return r.table_name === 'destinations' ? 'Archived' : 'Deleted';
   if (was && !now) return 'Restored';
   return 'Changed';
 }
@@ -31,13 +31,14 @@ const changes = (r) =>
 export default function HistoryPanel({ onClose, onRestored }) {
   const [rows, setRows] = useState([]);
   const [archived, setArchived] = useState([]);
+  const [delHolds, setDelHolds] = useState([]);
   const [q, setQ] = useState('');
   const [err, setErr] = useState('');
 
   async function load() {
     try {
-      const [h, a] = await Promise.all([loadHistory(), loadArchived()]);
-      setRows(h); setArchived(a); setErr('');
+      const [h, a, dh] = await Promise.all([loadHistory(), loadArchived(), loadDeletedHolds()]);
+      setRows(h); setArchived(a); setDelHolds(dh); setErr('');
     } catch (e) { setErr(`Could not load history: ${e.message}`); }
   }
   useEffect(() => { load(); }, []);
@@ -45,6 +46,11 @@ export default function HistoryPanel({ onClose, onRestored }) {
   async function restore(d) {
     if (!window.confirm(`Restore ${d.name}? It will show again as a destination tab.`)) return;
     try { await restoreDestination(d.id); await load(); await onRestored(); }
+    catch (e) { setErr(`Could not restore: ${e.message}`); }
+  }
+
+  async function restoreH(h) {
+    try { await restoreHold(h.id); await load(); await onRestored(); }
     catch (e) { setErr(`Could not restore: ${e.message}`); }
   }
 
@@ -69,6 +75,27 @@ export default function HistoryPanel({ onClose, onRestored }) {
                   <tr key={d.id}>
                     <td>{d.name}</td><td>{d.code || '—'}</td><td>{new Date(d.archived_at).toLocaleString()}</td>
                     <td><button className="mini" onClick={() => restore(d)}>Restore</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {!!delHolds.length && (
+        <>
+          <div className="prevh">Deleted holds (hidden; restore brings them back as CANCEL)</div>
+          <div className="tbl" style={{ marginBottom: 14 }}>
+            <table>
+              <thead><tr><th>Lead name</th><th>Pax</th><th>Agent</th><th>Departure</th><th>Deleted</th><th></th></tr></thead>
+              <tbody>
+                {delHolds.map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.lead_name}</td><td>{h.pax}</td><td>{h.agent || '—'}</td>
+                    <td>{h.departures?.destinations?.name} · {h.departures?.label}</td>
+                    <td>{new Date(h.archived_at).toLocaleString()}</td>
+                    <td><button className="mini" onClick={() => restoreH(h)}>Restore</button></td>
                   </tr>
                 ))}
               </tbody>

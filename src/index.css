@@ -88,3 +88,7 @@ body{margin:0}
 .banner.info{background:var(--info-bg);color:var(--info)}
 .or{font-size:12px;color:var(--muted);align-self:center}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.mini.danger{color:var(--bad);border-color:var(--bad)}
+.depwrap{display:grid;gap:6px;align-content:start}
+.depwrap .depedit{justify-self:end}
+.dep-add{place-items:center;color:var(--accent);font-weight:600;border-style:dashed;min-height:120px}

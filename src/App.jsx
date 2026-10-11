@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { configured, getStaff, setStaff } from './lib/supabase.js';
-import { loadAll, loadAgents, updateHold } from './lib/api.js';
+import { deleteHold, loadAll, loadAgents, restoreHold, updateHold } from './lib/api.js';
 import { fmtD, isoStr } from './lib/parseTracker.js';
 import ImportPanel from './ImportPanel.jsx';
 import AgentsPanel from './AgentsPanel.jsx';
 import HistoryPanel from './HistoryPanel.jsx';
 import DestinationHeader from './DestinationHeader.jsx';
+import DepartureEditor from './DepartureEditor.jsx';
 import { exportBackup } from './lib/exportBackup.js';
 import ReservationsView from './ReservationsView.jsx';
 import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, daysLeft, stats } from './lib/slots.js';
@@ -19,6 +20,7 @@ export default function App() {
   const [loadErr, setLoadErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('dashboard'); // 'dashboard' | 'reservations'
+  const [depEdit, setDepEdit] = useState(null); // null | { dep } to edit | { dep: null } to add
   const [resDep, setResDep] = useState(''); // departure pre-selected when opening Reservations
   const [showImport, setShowImport] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
@@ -76,6 +78,17 @@ export default function App() {
 
   async function onUndo(h, prev) {
     if (await saveHold(h.id, { status: prev })) setHMsg({ kind: 'ok', text: `Undone: ${h.lead} is back to ${prev}.` });
+  }
+
+  async function onDelete(h) {
+    if (!window.confirm(`Delete ${h.lead} (${h.pax} pax)?
+
+It will be removed from this list. You can restore it from History.`)) return;
+    try {
+      await deleteHold(h.id);
+      await refresh();
+      setHMsg({ kind: 'ok', text: `Deleted: ${h.lead}.`, undo: async () => { await restoreHold(h.id); await refresh(); setHMsg({ kind: 'ok', text: `Restored: ${h.lead}.` }); } });
+    } catch (err) { setHMsg({ kind: 'err', text: `Could not delete: ${err.message}` }); }
   }
 
   // Inline edit of one hold row
@@ -173,7 +186,7 @@ export default function App() {
         <>
           <nav className="tabs" role="tablist">
             {pkgs.map((p) => (
-              <button key={p.id} className="tab" role="tab" aria-selected={p.id === cur} onClick={() => { setCur(p.id); setSelDep(null); }}>
+              <button key={p.id} className="tab" role="tab" aria-selected={p.id === cur} onClick={() => { setCur(p.id); setSelDep(null); setDepEdit(null); }}>
                 {p.tab}
               </button>
             ))}
@@ -188,6 +201,17 @@ export default function App() {
                 onChanged={() => refresh()}
                 onDeleted={async (n) => { setSelDep(null); await refresh(); setExp({ busy: false, kind: 'info', text: `Deleted ${n}. You can restore it from History.` }); }}
               />
+              {depEdit && (
+                <DepartureEditor
+                  key={depEdit.dep?.id || 'new'}
+                  dep={depEdit.dep}
+                  destinationId={pkg.id}
+                  used={depEdit.dep ? (() => { const s = stats(depEdit.dep, holds); return s.paid + s.held; })() : 0}
+                  defaults={(() => { const l = pkg.deps[pkg.deps.length - 1]; return l ? { price: l.price, blocked: l.blocked, code: l.code, itin: l.itin } : {}; })()}
+                  onCancel={() => setDepEdit(null)}
+                  onSaved={async (label) => { setDepEdit(null); await refresh(pkg.id); setExp({ busy: false, kind: 'info', text: `Saved departure ${label}.` }); }}
+                />
+              )}
               <div className="deps">
                 {pkg.deps.map((d) => {
                   const s = stats(d, holds);
@@ -195,7 +219,8 @@ export default function App() {
                   const w = (v) => `${s.cap ? (v / s.cap) * 100 : 0}%`;
                   const showCode = new Set(pkg.deps.map((x) => x.code)).size > 1;
                   return (
-                    <button key={d.id} className="dep" aria-pressed={selDep === d.id} onClick={() => setSelDep(selDep === d.id ? null : d.id)}>
+                    <div key={d.id} className="depwrap">
+                    <button className="dep" aria-pressed={selDep === d.id} onClick={() => setSelDep(selDep === d.id ? null : d.id)}>
                       <div className="row"><span className="date">{d.label}</span><span className={`pill ${pill[0]}`}>{pill[1]}</span></div>
                       <div className="row"><span className="left">{daysLeft(d.date, today)} days before departure</span><span className="left">₱{d.price.toLocaleString()} / pax</span></div>
                       <div className="bar" aria-hidden="true"><i style={{ width: w(s.paid), background: 'var(--info)' }} /><i style={{ width: w(s.held), background: 'var(--warn)' }} /></div>
@@ -210,8 +235,11 @@ export default function App() {
                         {d.remarks && <span className="left">{d.remarks}</span>}
                       </div>
                     </button>
+                    <button className="mini depedit" onClick={() => setDepEdit({ dep: d })}>Edit departure</button>
+                    </div>
                   );
                 })}
+                <button className="dep dep-add" onClick={() => setDepEdit({ dep: null })}>+ Add departure</button>
               </div>
             </section>
           )}
@@ -279,7 +307,7 @@ export default function App() {
                               {h.status === 'HOLD' && <button className="mini" onClick={stop(() => onStatus(h, 'PAID-DP'))}>Mark DP</button>}
                               {h.status === 'PAID-DP' && <button className="mini" onClick={stop(() => onStatus(h, 'FULL PAYMENT'))}>Full paid</button>}
                               {h.status === 'CANCEL'
-                                ? <button className="mini" onClick={stop(() => onStatus(h, 'HOLD'))}>Restore</button>
+                                ? <><button className="mini" onClick={stop(() => onStatus(h, 'HOLD'))}>Restore</button><button className="mini danger" onClick={stop(() => onDelete(h))}>Delete</button></>
                                 : <button className="mini" onClick={stop(() => onStatus(h, 'CANCEL'))}>Release</button>}
                             </div>
                           </td>
