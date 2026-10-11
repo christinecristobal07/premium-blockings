@@ -225,7 +225,7 @@ It will be removed from this list. You can restore it from History.`)) return;
                       <div className="bar" aria-hidden="true"><i style={{ width: w(s.paid), background: 'var(--info)' }} /><i style={{ width: w(s.held), background: 'var(--warn)' }} /></div>
                       <div className="nums">
                         <div><b>{d.blocked}{d.manual ? `+${d.manual}` : ''}</b>Blocked</div>
-                        <div><b>{s.paid}</b>Paid</div><div><b>{s.held}</b>On hold</div><div><b>{s.avail}</b>Available</div>
+                        <div><b>{s.paid}</b>Paid</div><div><b>{s.held}</b>On hold</div><div className={`availnum${s.avail ? '' : ' full'}`}><b>{s.avail || 'FULL'}</b>{s.avail ? 'Available' : 'No slots left'}</div>
                       </div>
                       <div style={{ display: 'grid', gap: 2 }}>
                         {d.code && <span><span className="codebadge">CODE: {d.code}</span>{d.itin && <span className="left"> {d.itin}</span>}</span>}

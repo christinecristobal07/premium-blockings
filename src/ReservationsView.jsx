@@ -14,7 +14,8 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
   const [q, setQ] = useState('');
   const upd = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const depById = (id) => allDeps.find((d) => d.id === id);
-  const formDep = form.dep || allDeps[0]?.id || '';
+  // Start on the chosen departure, else the first one that still has slots.
+  const formDep = form.dep || allDeps.find((d) => stats(d, holds).avail > 0)?.id || allDeps[0]?.id || '';
 
   async function onReserve(e) {
     e.preventDefault();
@@ -40,6 +41,8 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
 
   const sel = depById(formDep);
   const selStats = sel && stats(sel, holds);
+  const selFull = !!sel && selStats.avail === 0;
+  const tooMany = !!sel && !selFull && +form.pax > selStats.avail;
   const needle = q.trim().toLowerCase();
   const list = visibleReservations(holds)
     .filter((h) => depById(h.dep))
@@ -55,7 +58,10 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
         <form id="f" onSubmit={onReserve}>
           <label className="wide">Departure
             <select id="fDep" value={formDep} onChange={upd('dep')}>
-              {allDeps.map((d) => <option key={d.id} value={d.id}>{d.pkg.tab} · {d.label}{d.code ? ` · CODE ${d.code}` : ''} ({stats(d, holds).avail} left)</option>)}
+              {allDeps.map((d) => {
+                const left = stats(d, holds).avail;
+                return <option key={d.id} value={d.id} disabled={!left && d.id !== formDep}>{d.pkg.tab} · {d.label}{d.code ? ` · CODE ${d.code}` : ''} {left ? `(${left} left)` : '— FULLY BOOKED'}</option>;
+              })}
             </select>
           </label>
           <label>Number of pax<input id="fPax" type="number" min="1" value={form.pax} onChange={upd('pax')} /></label>
@@ -68,11 +74,21 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
           </label>
           <label>Hold by<select id="fBy" value={form.by} onChange={upd('by')}>{HOLD_BY.map((b) => <option key={b}>{b}</option>)}</select></label>
           <label>Status<select id="fStatus" value={form.status} onChange={upd('status')}>{STATUSES.slice(0, 3).map((s) => <option key={s}>{s}</option>)}</select></label>
-          <button className="btn" disabled={busy || !allDeps.length}>{busy ? 'Saving…' : 'Reserve slots'}</button>
+          <button className="btn" disabled={busy || !allDeps.length || selFull}>{busy ? 'Saving…' : 'Reserve slots'}</button>
           {sel && (
             <div className="note">
-              {sel.code && <><span className="codebadge">CODE: {sel.code}</span>{' '}</>}{sel.pkg.tab} · {sel.label}: {selStats.avail} of {selStats.cap} slot(s) available · ₱{sel.price.toLocaleString()} / pax
+              {sel.code && <><span className="codebadge">CODE: {sel.code}</span>{' '}</>}
+              {selFull ? <span className="availbadge full">FULLY BOOKED</span> : <span className="availbadge">{selStats.avail} of {selStats.cap} slots available</span>}
+              {' '}{sel.pkg.tab} · {sel.label} · ₱{sel.price.toLocaleString()} / pax
             </div>
+          )}
+          {selFull && (
+            <div className="fullwarn" role="alert">
+              <b>Fully booked:</b> {sel.pkg.tab} · {sel.label} has no slots left. You cannot reserve or hold this departure. Please choose another date.
+            </div>
+          )}
+          {tooMany && (
+            <div className="fullwarn soft" role="alert">Only {selStats.avail} slot(s) left on {sel.label}. Reduce the number of pax.</div>
           )}
           <div className={`msg ${msg.kind}`} role="status">{msg.text}</div>
           <div className="note">Holds without DP are released after {HOLD_DAYS} days.</div>
