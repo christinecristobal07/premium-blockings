@@ -42,6 +42,8 @@ export default function DepartureEditor({ dep, destinationId, used = 0, defaults
       code: f.code.trim().toUpperCase() || null, itin: f.itin.trim() || null,
       full_by: f.full_by.trim() || null, remarks: f.remarks.trim() || null,
     };
+    // A typed note is kept as is; the database only auto-fills or clears dates it filled itself.
+    if (f.full_by.trim() !== (dep?.fullBy || '').trim()) fields.full_auto = false;
     setBusy(true); setErr('');
     try {
       if (dep) await updateDeparture(dep.id, fields); else await addDeparture(destinationId, fields);
@@ -59,7 +61,7 @@ export default function DepartureEditor({ dep, destinationId, used = 0, defaults
       <label>Manual pax (extra)<input type="number" min="0" value={f.manual} onChange={set('manual')} /></label>
       <label>Package code<input value={f.code} onChange={set('code')} placeholder="e.g. UKR13B1" /></label>
       <label>Itinerary<input value={f.itin} onChange={set('itin')} placeholder="e.g. 6D4N KOREA NAMI ISLAND" /></label>
-      <label>Full slot (date / note)<input value={f.full_by} onChange={set('full_by')} /></label>
+      <label>Full slot (auto-fills when paid pax reach the slots)<input value={f.full_by} onChange={set('full_by')} placeholder="Filled automatically" /></label>
       <label>Remarks<input value={f.remarks} onChange={set('remarks')} /></label>
       <div className="act" style={{ alignSelf: 'end', gap: 8 }}>
         <button className="btn" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>

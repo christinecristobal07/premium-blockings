@@ -208,3 +208,47 @@ revoke execute on function audit_row() from public, anon, authenticated;
 alter table holds add column if not exists archived_at timestamptz;
 alter table holds drop constraint if exists holds_archived_only_cancel;
 alter table holds add constraint holds_archived_only_cancel check (archived_at is null or status = 'CANCEL');
+
+-- "Full slot" auto-fill: when paid pax (PAID-DP + FULL PAYMENT, not HOLD) reach blocked + manual, full_by gets the
+-- date and time in Manila. If the departure opens up again it is cleared, but only when it was auto-filled.
+alter table departures add column if not exists full_auto boolean not null default false;
+create or replace function refresh_full_slot(p_dep uuid) returns void
+language plpgsql set search_path = public as $$
+declare d departures; cap int; paid int;
+begin
+  select * into d from departures where id = p_dep;
+  if d.id is null then return; end if;
+  cap := d.blocked + d.manual;
+  select coalesce(sum(pax), 0) into paid from holds
+    where departure_id = p_dep and status in ('PAID-DP', 'FULL PAYMENT') and archived_at is null;
+  if cap > 0 and paid >= cap then
+    if coalesce(btrim(d.full_by), '') = '' then
+      update departures
+        set full_by = to_char(now() at time zone 'Asia/Manila', 'FMMonth FMDD, YYYY "at" FMHH12:MI AM'), full_auto = true
+        where id = p_dep;
+    end if;
+  elsif d.full_auto then
+    update departures set full_by = null, full_auto = false where id = p_dep;
+  end if;
+end $$;
+create or replace function holds_full_slot() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if tg_op <> 'INSERT' then perform refresh_full_slot(old.departure_id); end if;
+  if tg_op <> 'DELETE' and (tg_op = 'INSERT' or new.departure_id <> old.departure_id) then
+    perform refresh_full_slot(new.departure_id);
+  end if;
+  return null;
+end $$;
+drop trigger if exists full_slot on holds;
+create trigger full_slot after insert or update or delete on holds for each row execute function holds_full_slot();
+create or replace function departures_full_slot() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if pg_trigger_depth() > 1 then return null; end if; -- the auto-fill itself
+  perform refresh_full_slot(new.id);
+  return null;
+end $$;
+drop trigger if exists full_slot on departures;
+create trigger full_slot after insert or update of blocked, manual, full_by on departures
+for each row execute function departures_full_slot();
