@@ -1,7 +1,7 @@
 import { isoStr } from './parseTracker.js';
 
 export const HOLD_DAYS = 3; // no DP within 3 days = released
-export const HOLD_BY = ['TINE', 'PAT', 'KC'];
+export const HOLD_BY = ['TINE', 'PAT', 'KC']; // admins who can hold for an agent (same names as the trackers)
 export const STATUSES = ['HOLD', 'PAID-DP', 'FULL PAYMENT', 'CANCEL'];
 
 export const addDays = (s, d) => { const x = new Date(s + 'T00:00'); x.setDate(x.getDate() + d); return isoStr(x); };

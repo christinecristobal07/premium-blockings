@@ -48,18 +48,22 @@ create table if not exists holds (
 create index if not exists holds_departure_idx on holds(departure_id);
 
 -- Reserve slots without double booking: locks the departure row, counts live pax, then inserts.
-create or replace function reserve_slots(p_departure uuid, p_pax int, p_lead text, p_agent text, p_by text, p_status text)
-returns holds language plpgsql as $$
+-- hold_by is null when the agent reserves by themselves; an admin name when staff reserve on the agent's behalf.
+drop function if exists reserve_slots(uuid, int, text, text, text, text);
+create or replace function reserve_slots(p_departure uuid, p_pax int, p_lead text, p_agent text, p_by text, p_status text, p_remarks text default null)
+returns holds language plpgsql set search_path = public as $$
 declare cap int; used int; h holds;
 begin
   select blocked + manual into cap from departures where id = p_departure for update;
   if cap is null then raise exception 'Departure not found'; end if;
-  select coalesce(sum(pax),0) into used from holds where departure_id = p_departure and status <> 'CANCEL';
+  select coalesce(sum(pax),0) into used from holds
+    where departure_id = p_departure and status <> 'CANCEL' and archived_at is null;
   if p_pax > cap - used then
     raise exception 'Only % slot(s) left on this departure', greatest(cap - used, 0);
   end if;
-  insert into holds(departure_id, pax, lead_name, agent, hold_by, status)
-  values (p_departure, p_pax, p_lead, p_agent, p_by, coalesce(p_status,'HOLD')) returning * into h;
+  insert into holds(departure_id, pax, lead_name, agent, hold_by, status, remarks)
+  values (p_departure, p_pax, p_lead, p_agent, nullif(btrim(p_by), ''), coalesce(p_status,'HOLD'), nullif(btrim(p_remarks), ''))
+  returning * into h;
   return h;
 end $$;
 

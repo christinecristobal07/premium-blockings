@@ -7,8 +7,13 @@ import ReservationModal from './ReservationModal.jsx';
 
 // Reservations view: make a reservation, and see the reservations list.
 // Phase 2: the list goes through visibleReservations() so agents only see their own.
-export default function ReservationsView({ today, allDeps, holds, agentOptions, startDep, onReserved }) {
-  const [form, setForm] = useState({ dep: startDep || '', pax: 2, lead: '', agent: '', by: 'TINE', status: 'HOLD' });
+// filledBy: 'agent' = the agent reserves by themselves (no Hold by); 'admin' = Tine / Pat / KC reserve for the agent.
+// Phase 2: set this from the logged-in user's role instead of the dropdown.
+export default function ReservationsView({ today, allDeps, holds, agentOptions, startDep, staff, onReserved }) {
+  const [form, setForm] = useState({
+    dep: startDep || '', pax: 2, lead: '', agent: '', status: 'HOLD', remarks: '',
+    filledBy: HOLD_BY.includes(staff) ? 'admin' : 'agent', by: HOLD_BY.includes(staff) ? staff : HOLD_BY[0],
+  });
   const [msg, setMsg] = useState({ kind: '', text: '' });
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState(null); // { mode: 'review' | 'done', r, dep, error }
@@ -34,7 +39,8 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
       mode: 'review', dep: d,
       r: {
         destination: d.pkg.tab, code: d.code, departure: d.label, pax, lead, agent: form.agent.trim().toUpperCase(),
-        by: form.by, status: form.status, price: d.price,
+        by: form.filledBy === 'admin' ? form.by : '', status: form.status, price: d.price,
+        remarks: [form.filledBy === 'admin' && `Held by ${form.by} for ${form.agent.trim().toUpperCase() || 'the agent'}`, form.remarks.trim()].filter(Boolean).join(' · '),
         holdExpires: form.status === 'HOLD' ? fmtD(addDays(isoStr(today), HOLD_DAYS)) : '',
       },
     });
@@ -45,8 +51,8 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
     const { dep: d, r } = modal;
     setBusy(true);
     try {
-      await reserve({ dep: d.id, pax: r.pax, lead: r.lead, agent: r.agent, by: r.by, status: r.status });
-      setForm((f) => ({ ...f, lead: '' }));
+      await reserve({ dep: d.id, pax: r.pax, lead: r.lead, agent: r.agent, by: r.by, status: r.status, remarks: r.remarks });
+      setForm((f) => ({ ...f, lead: '', remarks: '' }));
       setModal({ mode: 'done', dep: d, r });
       playReservationComplete();
       await onReserved(d.pkg.id);
@@ -103,8 +109,17 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
               {agentOptions(form.agent).map((a) => <option key={a}>{a}</option>)}
             </select>
           </label>
-          <label>Hold by<select id="fBy" value={form.by} onChange={upd('by')}>{HOLD_BY.map((b) => <option key={b}>{b}</option>)}</select></label>
+          <label>Filled out by
+            <select id="fFilled" value={form.filledBy} onChange={upd('filledBy')}>
+              <option value="agent">Agent (self)</option>
+              <option value="admin">Admin, for the agent</option>
+            </select>
+          </label>
+          {form.filledBy === 'admin' && (
+            <label>Hold by<select id="fBy" value={form.by} onChange={upd('by')}>{HOLD_BY.map((b) => <option key={b}>{b}</option>)}</select></label>
+          )}
           <label>Status<select id="fStatus" value={form.status} onChange={upd('status')}>{STATUSES.slice(0, 3).map((s) => <option key={s}>{s}</option>)}</select></label>
+          <label className="wide">Remarks (optional)<input id="fRem" value={form.remarks} onChange={upd('remarks')} placeholder={form.filledBy === 'admin' ? `"Held by ${form.by} for the agent" is added automatically` : 'e.g. manual ticket, special request'} /></label>
           <button className="btn" disabled={busy || !allDeps.length || selFull}>{busy ? 'Saving…' : 'Review & reserve'}</button>
           {sel && (
             <div className="note">

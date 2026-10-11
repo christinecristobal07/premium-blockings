@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 // Pop-up box for a reservation. mode 'review' = check before submit; mode 'done' = saved.
-// r: { destination, code, departure, pax, lead, agent, by, status, price, holdExpires }
+// r: { destination, code, departure, pax, lead, agent, by, status, price, holdExpires, remarks }
 export default function ReservationModal({ mode, r, busy, error, onEdit, onConfirm, onDone }) {
   const close = mode === 'done' ? onDone : onEdit;
   useEffect(() => {
@@ -17,11 +17,12 @@ export default function ReservationModal({ mode, r, busy, error, onEdit, onConfi
     ['Number of pax', `${r.pax} PAX`],
     ['Lead name', r.lead],
     ['Agent', r.agent || '—'],
-    ['Hold by', r.by],
+    r.by ? ['Hold by', `${r.by} (admin, for the agent)`] : ['Filled out by', 'Agent (self)'],
     ['Status', r.status],
     ['Price / pax', `₱${r.price.toLocaleString()}`],
     ['Total', `₱${(r.price * r.pax).toLocaleString()}`],
     ...(r.holdExpires ? [['Hold expires', `${r.holdExpires} (no DP = released)`]] : []),
+    ...(r.remarks ? [['Remarks', r.remarks]] : []),
   ];
 
   return (

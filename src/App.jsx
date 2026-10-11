@@ -35,12 +35,12 @@ export default function App() {
       setExp({ busy: false, kind: 'err', text: `Export failed: ${e.message}` });
     }
   }
-  // Theme: 'system' follows the computer's setting; 'light' / 'dark' are saved in this browser.
-  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('gladex-theme') || 'system'; } catch { return 'system'; } });
+  // Theme: Light (default, warm cream) or Dark, saved in this browser.
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('gladex-theme') === 'dark' ? 'dark' : 'light'; } catch { return 'light'; } });
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'system') delete root.dataset.theme; else root.dataset.theme = theme;
-    try { if (theme === 'system') localStorage.removeItem('gladex-theme'); else localStorage.setItem('gladex-theme', theme); } catch { /* storage blocked */ }
+    root.dataset.theme = theme;
+    try { localStorage.setItem('gladex-theme', theme); } catch { /* storage blocked */ }
   }, [theme]);
   const [staff, setStaffState] = useState(getStaff());
   const pickStaff = (e) => { setStaff(e.target.value); setStaffState(e.target.value); };
@@ -136,11 +136,10 @@ It will be removed from this list. You can restore it from History.`)) return;
           <div className="sub">Live slot availability and holds for fixed-departure packages. Today is {fmtD(isoStr(today))}.</div>
         </div>
         <div className="act" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Theme
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>💡 Theme
             <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="system">Same as computer</option>
+              <option value="light">☀️ Light</option>
+              <option value="dark">🌙 Dark</option>
             </select>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>You are
@@ -192,6 +191,7 @@ It will be removed from this list. You can restore it from History.`)) return;
           holds={holds}
           agentOptions={agentOptions}
           startDep={resDep}
+          staff={staff}
           onReserved={(focusId) => refresh(focusId)}
         />
       )}
@@ -297,7 +297,7 @@ It will be removed from this list. You can restore it from History.`)) return;
                               <button className="mini primary" onClick={saveEdit}>Save</button>
                               <button className="mini" onClick={() => setEditId(null)}>Cancel</button>
                             </div></td>
-                            <td><select value={draft.hold_by} onChange={dset('hold_by')}>{[...new Set([...HOLD_BY, draft.hold_by])].map((b) => <option key={b} value={b}>{b || '—'}</option>)}</select></td>
+                            <td><select value={draft.hold_by} onChange={dset('hold_by')}>{[...new Set(['', ...HOLD_BY, draft.hold_by])].map((b) => <option key={b} value={b}>{b || 'Agent (self)'}</option>)}</select></td>
                             <td>{d?.label}</td>
                             <td><input type="number" min="1" value={draft.pax} onChange={dset('pax')} style={{ width: 56 }} /></td>
                             <td><input value={draft.lead_name} onChange={dset('lead_name')} autoFocus /></td>
@@ -325,7 +325,7 @@ It will be removed from this list. You can restore it from History.`)) return;
                                 : <button className="mini" onClick={stop(() => onStatus(h, 'CANCEL'))}>Release</button>}
                             </div>
                           </td>
-                          <td>{h.by}</td><td>{d?.label}</td><td>{h.pax} PAX</td><td>{h.lead}</td><td>{h.agent}</td>
+                          <td>{h.by || <span className="note">AGENT</span>}</td><td>{d?.label}</td><td>{h.pax} PAX</td><td>{h.lead}</td><td>{h.agent}</td>
                           <td className="st"><span className={`pill ${sc}`}>{h.status}</span></td>
                           <td>{fmtD(h.held)}</td>
                           <td>{!exp ? '—' : expired ? <span className="pill s-CANCEL">EXPIRED {fmtD(exp)}</span> : <span className="due">{fmtD(exp)}</span>}</td>

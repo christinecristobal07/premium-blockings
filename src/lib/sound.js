@@ -28,6 +28,20 @@ function chime() {
   });
 }
 
+// Female English voices that come with Windows, Edge, Chrome and Mac, best first.
+const FEMALE = ['jenny', 'aria', 'zira', 'samantha', 'google us english', 'female', 'susan', 'hazel', 'karen', 'moira', 'tessa', 'victoria', 'libby', 'sonia', 'natasha'];
+
+function femaleVoice() {
+  const voices = window.speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
+  for (const name of FEMALE) {
+    const v = voices.find((x) => x.name.toLowerCase().includes(name));
+    if (v) return v;
+  }
+  return null;
+}
+// The voice list loads after the page; ask for it early so it is ready by the first reservation.
+try { window.speechSynthesis?.getVoices(); } catch { /* no voices */ }
+
 function say(text) {
   try {
     if (!('speechSynthesis' in window)) return;
@@ -35,6 +49,9 @@ function say(text) {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
     u.rate = 1;
+    const v = femaleVoice();
+    if (v) u.voice = v;
+    u.pitch = v ? 1.1 : 1.4; // no female voice installed: raise the pitch of the default one
     setTimeout(() => window.speechSynthesis.speak(u), 550); // after the chime
   } catch { /* no voice on this device */ }
 }

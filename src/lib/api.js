@@ -35,10 +35,10 @@ export async function loadAll() {
   return { pkgs, holds };
 }
 
-export async function reserve({ dep, pax, lead, agent, by, status }) {
+export async function reserve({ dep, pax, lead, agent, by, status, remarks }) {
   return must(
     await supabase.rpc('reserve_slots', {
-      p_departure: dep, p_pax: pax, p_lead: lead, p_agent: agent, p_by: by, p_status: status,
+      p_departure: dep, p_pax: pax, p_lead: lead, p_agent: agent, p_by: by, p_status: status, p_remarks: remarks,
     })
   );
 }
