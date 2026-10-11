@@ -35,6 +35,13 @@ export default function App() {
       setExp({ busy: false, kind: 'err', text: `Export failed: ${e.message}` });
     }
   }
+  // Theme: 'system' follows the computer's setting; 'light' / 'dark' are saved in this browser.
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('gladex-theme') || 'system'; } catch { return 'system'; } });
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'system') delete root.dataset.theme; else root.dataset.theme = theme;
+    try { if (theme === 'system') localStorage.removeItem('gladex-theme'); else localStorage.setItem('gladex-theme', theme); } catch { /* storage blocked */ }
+  }, [theme]);
   const [staff, setStaffState] = useState(getStaff());
   const pickStaff = (e) => { setStaff(e.target.value); setStaffState(e.target.value); };
   const [agentRows, setAgentRows] = useState([]);
@@ -129,6 +136,13 @@ It will be removed from this list. You can restore it from History.`)) return;
           <div className="sub">Live slot availability and holds for fixed-departure packages. Today is {fmtD(isoStr(today))}.</div>
         </div>
         <div className="act" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Theme
+            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="system">Same as computer</option>
+            </select>
+          </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>You are
             <select value={staff} onChange={pickStaff} aria-invalid={!staff}>
               <option value="">— Choose —</option>
@@ -228,7 +242,8 @@ It will be removed from this list. You can restore it from History.`)) return;
                         <div><b>{s.paid}</b>Paid</div><div><b>{s.held}</b>On hold</div><div className={`availnum${s.avail ? '' : ' full'}`}><b>{s.avail || 'FULL'}</b>{s.avail ? 'Available' : 'No slots left'}</div>
                       </div>
                       <div style={{ display: 'grid', gap: 2 }}>
-                        {d.code && <span><span className="codebadge">CODE: {d.code}</span>{d.itin && <span className="left"> {d.itin}</span>}</span>}
+                        {d.code && <span><span className="codebadge">CODE: {d.code}</span></span>}
+                        {d.itin && <span className="itin">{d.itin}</span>}
                         {!!pkg.rooming && <span className="left">Rooming list due {fmtD(addDays(d.date, -pkg.rooming))}</span>}
                         {d.fullBy && <span className="left">Full slot: {d.fullBy}</span>}
                         {d.remarks && <span className="left">{d.remarks}</span>}

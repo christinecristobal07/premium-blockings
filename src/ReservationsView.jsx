@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { reserve } from './lib/api.js';
 import { fmtD, isoStr } from './lib/parseTracker.js';
 import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, stats, visibleReservations } from './lib/slots.js';
+import { playReservationComplete, unlockAudio } from './lib/sound.js';
+import ReservationModal from './ReservationModal.jsx';
 
 // Reservations view: make a reservation, and see the reservations list.
 // Phase 2: the list goes through visibleReservations() so agents only see their own.
@@ -9,6 +11,7 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
   const [form, setForm] = useState({ dep: startDep || '', pax: 2, lead: '', agent: '', by: 'TINE', status: 'HOLD' });
   const [msg, setMsg] = useState({ kind: '', text: '' });
   const [busy, setBusy] = useState(false);
+  const [modal, setModal] = useState(null); // { mode: 'review' | 'done', r, dep, error }
   const [flAgent, setFlAgent] = useState('');
   const [flSt, setFlSt] = useState('');
   const [q, setQ] = useState('');
@@ -25,14 +28,31 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
     if (!(pax >= 1)) return setMsg({ kind: 'err', text: 'Pax must be at least 1.' });
     const s = stats(d, holds);
     if (pax > s.avail) return setMsg({ kind: 'err', text: `Only ${s.avail} slot(s) left on ${d.label}. Reduce pax or pick another date.` });
+    setMsg({ kind: '', text: '' });
+    // Show everything in a box first so the agent can check it before it is saved.
+    setModal({
+      mode: 'review', dep: d,
+      r: {
+        destination: d.pkg.tab, code: d.code, departure: d.label, pax, lead, agent: form.agent.trim().toUpperCase(),
+        by: form.by, status: form.status, price: d.price,
+        holdExpires: form.status === 'HOLD' ? fmtD(addDays(isoStr(today), HOLD_DAYS)) : '',
+      },
+    });
+  }
+
+  async function onConfirm() {
+    unlockAudio(); // inside the click, so the browser allows the sound later
+    const { dep: d, r } = modal;
     setBusy(true);
     try {
-      await reserve({ dep: d.id, pax, lead, agent: form.agent.trim().toUpperCase(), by: form.by, status: form.status });
+      await reserve({ dep: d.id, pax: r.pax, lead: r.lead, agent: r.agent, by: r.by, status: r.status });
       setForm((f) => ({ ...f, lead: '' }));
+      setModal({ mode: 'done', dep: d, r });
+      playReservationComplete();
       await onReserved(d.pkg.id);
-      setMsg({ kind: 'ok', text: `Reserved ${pax} pax for ${lead} on ${d.pkg.tab} · ${d.label}.` });
+      setMsg({ kind: 'ok', text: `Reserved ${r.pax} pax for ${r.lead} on ${d.pkg.tab} · ${d.label}.` });
     } catch (err) {
-      setMsg({ kind: 'err', text: err.message });
+      setModal((m) => ({ ...m, error: `Not saved: ${err.message}` }));
       await onReserved();
     } finally {
       setBusy(false);
@@ -53,6 +73,17 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
 
   return (
     <section className="main">
+      {modal && (
+        <ReservationModal
+          mode={modal.mode}
+          r={modal.r}
+          busy={busy}
+          error={modal.error}
+          onEdit={() => setModal(null)}
+          onConfirm={onConfirm}
+          onDone={() => setModal(null)}
+        />
+      )}
       <div className="panel">
         <h3>New reservation</h3>
         <form id="f" onSubmit={onReserve}>
@@ -74,7 +105,7 @@ export default function ReservationsView({ today, allDeps, holds, agentOptions, 
           </label>
           <label>Hold by<select id="fBy" value={form.by} onChange={upd('by')}>{HOLD_BY.map((b) => <option key={b}>{b}</option>)}</select></label>
           <label>Status<select id="fStatus" value={form.status} onChange={upd('status')}>{STATUSES.slice(0, 3).map((s) => <option key={s}>{s}</option>)}</select></label>
-          <button className="btn" disabled={busy || !allDeps.length || selFull}>{busy ? 'Saving…' : 'Reserve slots'}</button>
+          <button className="btn" disabled={busy || !allDeps.length || selFull}>{busy ? 'Saving…' : 'Review & reserve'}</button>
           {sel && (
             <div className="note">
               {sel.code && <><span className="codebadge">CODE: {sel.code}</span>{' '}</>}
