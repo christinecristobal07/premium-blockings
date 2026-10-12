@@ -9,6 +9,7 @@ import DestinationHeader from './components/DestinationHeader.jsx';
 import DepartureEditor from './components/DepartureEditor.jsx';
 import { exportBackup } from './lib/exportBackup.js';
 import ReservationsView from './pages/ReservationsView.jsx';
+import AppHeader from './components/layout/AppHeader.jsx';
 import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, daysLeft, stats } from './lib/slots.js';
 
 export default function App() {
@@ -128,43 +129,35 @@ It will be removed from this list. You can restore it from History.`)) return;
         .sort((a, b) => b.held.localeCompare(a.held))
     : [];
 
-  return (
-    <div className="wrap">
-      <header>
-        <div>
-          <h1>Premium Blockings Portal</h1>
-          <div className="sub">Live slot availability and holds for fixed-departure packages. Today is {fmtD(isoStr(today))}.</div>
-        </div>
-        <div className="act" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>💡 Theme
-            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-              <option value="light">☀️ Light</option>
-              <option value="dark">🌙 Dark</option>
-            </select>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>You are
-            <select value={staff} onChange={pickStaff} aria-invalid={!staff}>
-              <option value="">— Choose —</option>
-              {HOLD_BY.map((b) => <option key={b}>{b}</option>)}
-            </select>
-          </label>
-          <button className="btn ghost" type="button" onClick={onExport} disabled={exp.busy}>{exp.busy ? 'Exporting…' : 'Export to Excel'}</button>
-          <button className="btn ghost" type="button" onClick={() => setShowHistory((v) => !v)}>History</button>
-          <button className="btn ghost" type="button" onClick={() => setShowAgents((v) => !v)}>Agents</button>
-          <button className="btn" type="button" onClick={() => setShowImport(true)}>+ Import destination</button>
-        </div>
-      </header>
+  const goTo = (v) => { if (v === 'reservations') setResDep(selDep || ''); setView(v); };
 
-      <nav className="tabs views" aria-label="Views">
-        <button className="tab" aria-current={view === 'dashboard' ? 'page' : undefined} onClick={() => setView('dashboard')}>Dashboard</button>
-        <button className="tab" aria-current={view === 'reservations' ? 'page' : undefined} onClick={() => { setResDep(selDep || ''); setView('reservations'); }}>Reservations</button>
-      </nav>
+  return (
+    <>
+    <AppHeader
+      view={view}
+      onNavigate={goTo}
+      theme={theme}
+      onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+      staff={staff}
+      staffOptions={HOLD_BY}
+      onStaffChange={pickStaff}
+      exporting={exp.busy}
+      onExport={onExport}
+      onHistory={() => setShowHistory((v) => !v)}
+      onAgents={() => setShowAgents((v) => !v)}
+      onImport={() => setShowImport(true)}
+    />
+    <main className="wrap">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="m-0 font-display text-[22px] font-bold text-fg">{view === 'reservations' ? 'Reservations' : 'Dashboard'}</h1>
+        <span className="text-[13px] text-muted">Today is {fmtD(isoStr(today))}</span>
+      </div>
 
       {loadErr && <div className="banner err">{loadErr}</div>}
 
       {exp.text && <div className={`banner ${exp.kind}`} role="status">{exp.text}</div>}
 
-      {!staff && <div className="banner info">Choose your name under <b>You are</b> (top right) so the History log shows who made each change.</div>}
+      {!staff && <div className="banner info">Choose your name in <b>Who are you?</b> (top right) so the History log shows who made each change.</div>}
 
       {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} onRestored={() => refresh()} />}
 
@@ -355,6 +348,7 @@ It will be removed from this list. You can restore it from History.`)) return;
           </section>
         </>
       )}
-    </div>
+    </main>
+    </>
   );
 }

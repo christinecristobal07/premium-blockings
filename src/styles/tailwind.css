@@ -1,6 +1,10 @@
-/* Tailwind without Preflight, so the existing index.css styles keep working while we migrate. */
-@layer theme, base, components, utilities;
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+
+/* Tailwind without Preflight. The old index.css sits in a "legacy" layer under utilities,
+   so Tailwind classes win over it. Delete legacy rules as each screen is migrated. */
+@layer theme, base, legacy, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
+@import "./index.css" layer(legacy);
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /* Dark mode follows the app's data-theme attribute */
