@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { configured, getStaff, setStaff } from './lib/supabase.js';
 import { deleteHold, loadAll, loadAgents, restoreHold, updateHold } from './lib/api.js';
 import { fmtD, isoStr } from './lib/parseTracker.js';
-import ImportPanel from './ImportPanel.jsx';
-import AgentsPanel from './AgentsPanel.jsx';
-import HistoryPanel from './HistoryPanel.jsx';
-import DestinationHeader from './DestinationHeader.jsx';
-import DepartureEditor from './DepartureEditor.jsx';
+import ImportPanel from './pages/ImportPanel.jsx';
+import AgentsPanel from './pages/AgentsPanel.jsx';
+import HistoryPanel from './pages/HistoryPanel.jsx';
+import DestinationHeader from './components/DestinationHeader.jsx';
+import DepartureEditor from './components/DepartureEditor.jsx';
 import { exportBackup } from './lib/exportBackup.js';
-import ReservationsView from './ReservationsView.jsx';
+import ReservationsView from './pages/ReservationsView.jsx';
 import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, daysLeft, stats } from './lib/slots.js';
 
 export default function App() {

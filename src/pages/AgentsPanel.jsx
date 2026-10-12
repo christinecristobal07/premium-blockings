@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { addAgent, deleteAgent } from './lib/api.js';
+import { addAgent, deleteAgent } from '../lib/api.js';
 
 // Manage the agent list used by the Agent dropdowns. Deleting an agent does not change existing holds.
 export default function AgentsPanel({ agents, holds, onClose, onChanged }) {

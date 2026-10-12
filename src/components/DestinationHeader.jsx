@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { archiveDestination, updateDestination } from './lib/api.js';
+import { archiveDestination, updateDestination } from '../lib/api.js';
 
 // Title row of the open destination, with Edit (name, itinerary, code, destination, rooming list) and Delete.
 // Delete archives it with its departures and holds; it can be restored from History.

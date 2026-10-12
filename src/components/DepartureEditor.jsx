@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { addDeparture, updateDeparture } from './lib/api.js';
-import { depLabel } from './lib/parseTracker.js';
+import { addDeparture, updateDeparture } from '../lib/api.js';
+import { depLabel } from '../lib/parseTracker.js';
 
 const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 

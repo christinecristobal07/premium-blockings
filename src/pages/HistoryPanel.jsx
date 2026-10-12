@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { loadArchived, loadDeletedHolds, loadHistory, restoreDestination, restoreHold } from './lib/api.js';
+import { loadArchived, loadDeletedHolds, loadHistory, restoreDestination, restoreHold } from '../lib/api.js';
 
 const TABLE = { destinations: 'Destination', departures: 'Departure', holds: 'Hold', agents: 'Agent' };
 const SKIP = new Set(['id', 'created_at', 'imported_at', 'departure_id', 'destination_id', 'flag']);

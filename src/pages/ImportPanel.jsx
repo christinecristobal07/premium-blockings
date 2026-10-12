@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { parseTracker } from './lib/parseTracker.js';
-import { createDestination, fetchSheet, importDestination } from './lib/api.js';
+import { parseTracker } from '../lib/parseTracker.js';
+import { createDestination, fetchSheet, importDestination } from '../lib/api.js';
 
 const titleCase = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { reserve } from './lib/api.js';
-import { fmtD, isoStr } from './lib/parseTracker.js';
-import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, stats, visibleReservations } from './lib/slots.js';
-import { playReservationComplete, unlockAudio } from './lib/sound.js';
-import ReservationModal from './ReservationModal.jsx';
+import { reserve } from '../lib/api.js';
+import { fmtD, isoStr } from '../lib/parseTracker.js';
+import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, stats, visibleReservations } from '../lib/slots.js';
+import { playReservationComplete, unlockAudio } from '../lib/sound.js';
+import ReservationModal from '../components/ReservationModal.jsx';
 
 // Reservations view: make a reservation, and see the reservations list.
 // Phase 2: the list goes through visibleReservations() so agents only see their own.
