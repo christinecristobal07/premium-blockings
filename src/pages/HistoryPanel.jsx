@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { loadArchived, loadDeletedHolds, loadHistory, restoreDestination, restoreHold } from '../lib/api.js';
+import { useConfirm } from '../components/ui/Feedback.jsx';
 
 const TABLE = { destinations: 'Destination', departures: 'Departure', holds: 'Hold', agents: 'Agent' };
 const SKIP = new Set(['id', 'created_at', 'imported_at', 'departure_id', 'destination_id', 'flag']);
@@ -29,6 +30,7 @@ const changes = (r) =>
 
 // Every add, change and archive in the database, newest first, plus archived destinations that can be restored.
 export default function HistoryPanel({ onClose, onRestored }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState([]);
   const [archived, setArchived] = useState([]);
   const [delHolds, setDelHolds] = useState([]);
@@ -44,7 +46,7 @@ export default function HistoryPanel({ onClose, onRestored }) {
   useEffect(() => { load(); }, []);
 
   async function restore(d) {
-    if (!window.confirm(`Restore ${d.name}? It will show again as a destination tab.`)) return;
+    if (!(await confirm({ title: `Restore ${d.name}?`, message: 'It will show again as a destination tab, with its departures and holds.', confirmText: 'Restore' }))) return;
     try { await restoreDestination(d.id); await load(); await onRestored(); }
     catch (e) { setErr(`Could not restore: ${e.message}`); }
   }

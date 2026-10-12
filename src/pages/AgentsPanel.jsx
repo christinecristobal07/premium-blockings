@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { addAgent, deleteAgent } from '../lib/api.js';
+import { useConfirm } from '../components/ui/Feedback.jsx';
 
 // Manage the agent list used by the Agent dropdowns. Deleting an agent does not change existing holds.
 export default function AgentsPanel({ agents, holds, onClose, onChanged }) {
+  const confirm = useConfirm();
   const [name, setName] = useState('');
   const [msg, setMsg] = useState({ kind: '', text: '' });
   const [q, setQ] = useState('');
@@ -22,8 +24,8 @@ export default function AgentsPanel({ agents, holds, onClose, onChanged }) {
 
   async function onDelete(a) {
     const n = uses(a.name);
-    const note = n ? ` They have ${n} hold(s); those stay as they are. You can add the name again later.` : '';
-    if (!window.confirm(`Delete agent ${a.name} from the list?${note}`)) return;
+    const note = n ? `They have ${n} hold(s); those stay as they are. ` : '';
+    if (!(await confirm({ title: `Delete agent ${a.name}?`, message: `${note}You can add the name again later.`, confirmText: 'Delete agent', tone: 'danger' }))) return;
     try {
       await deleteAgent(a.id);
       await onChanged();

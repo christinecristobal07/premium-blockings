@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Button from './ui/Button.jsx';
 import StatusBadge from './ui/StatusBadge.jsx';
 import { PlusIcon } from './ui/icons.jsx';
+import { useConfirm, useToast } from './ui/Feedback.jsx';
 import { deleteHold, restoreHold, updateHold } from '../lib/api.js';
 import { fmtD, isoStr } from '../lib/parseTracker.js';
 import { HOLD_BY, HOLD_DAYS, STATUSES, addDays } from '../lib/slots.js';
@@ -23,34 +24,41 @@ const foot = 'sticky bottom-0 border-t border-line bg-bg px-4 py-3';
 
 // Holds & bookings for the selected destination: filters, inline row editing, status actions.
 export default function HoldsTable({ pkg, holds, today, selDep, onSelDep, depById, agentOptions, refresh, onNewReservation }) {
-  const [msg, setMsg] = useState({ kind: '', text: '' });
+  const confirm = useConfirm();
+  const toast = useToast();
+  // Result messages go to a toast; an undo becomes the toast's Undo button.
+  const notify = ({ undo, ...m }) => toast(undo ? { ...m, action: { label: 'Undo', onClick: undo } } : m);
   const [flSt, setFlSt] = useState('');
 
   async function saveHold(id, patch) {
     try { await updateHold(id, patch); await refresh(); return true; }
-    catch (err) { setMsg({ kind: 'err', text: `Could not update the hold: ${err.message}` }); await refresh(); return false; }
+    catch (err) { notify({ kind: 'err', text: `Could not update the hold: ${err.message}` }); await refresh(); return false; }
   }
 
   async function onStatus(h, status) {
     const prev = h.status;
     if (!(await saveHold(h.id, { status }))) return;
     const what = status === 'CANCEL' ? 'Released' : `Marked ${status}`;
-    setMsg({ kind: 'ok', text: `${what}: ${h.lead} (${h.pax} pax).`, undo: () => onUndo(h, prev) });
+    notify({ kind: 'ok', text: `${what}: ${h.lead} (${h.pax} pax).`, undo: () => onUndo(h, prev) });
   }
 
   async function onUndo(h, prev) {
-    if (await saveHold(h.id, { status: prev })) setMsg({ kind: 'ok', text: `Undone: ${h.lead} is back to ${prev}.` });
+    if (await saveHold(h.id, { status: prev })) notify({ kind: 'ok', text: `Undone: ${h.lead} is back to ${prev}.` });
   }
 
   async function onDelete(h) {
-    if (!window.confirm(`Delete ${h.lead} (${h.pax} pax)?
-
-It will be removed from this list. You can restore it from History.`)) return;
+    const ok = await confirm({
+      title: `Delete ${h.lead}?`,
+      message: `${h.pax} pax on ${depById(h.dep)?.label || 'this departure'}. It will be removed from this list. You can restore it from History.`,
+      confirmText: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await deleteHold(h.id);
       await refresh();
-      setMsg({ kind: 'ok', text: `Deleted: ${h.lead}.`, undo: async () => { await restoreHold(h.id); await refresh(); setMsg({ kind: 'ok', text: `Restored: ${h.lead}.` }); } });
-    } catch (err) { setMsg({ kind: 'err', text: `Could not delete: ${err.message}` }); }
+      notify({ kind: 'ok', text: `Deleted: ${h.lead}.`, undo: async () => { await restoreHold(h.id); await refresh(); notify({ kind: 'ok', text: `Restored: ${h.lead}.` }); } });
+    } catch (err) { notify({ kind: 'err', text: `Could not delete: ${err.message}` }); }
   }
 
   // Inline edit of one hold row
@@ -63,10 +71,10 @@ It will be removed from this list. You can restore it from History.`)) return;
   };
   async function saveEdit() {
     const lead = draft.lead_name.trim(), pax = +draft.pax;
-    if (!lead) return setMsg({ kind: 'err', text: 'Lead name cannot be empty.' });
-    if (!(pax >= 1)) return setMsg({ kind: 'err', text: 'Pax must be at least 1.' });
+    if (!lead) return notify({ kind: 'err', text: 'Lead name cannot be empty.' });
+    if (!(pax >= 1)) return notify({ kind: 'err', text: 'Pax must be at least 1.' });
     const patch = { ...draft, pax, lead_name: lead, agent: draft.agent.trim().toUpperCase(), remarks: draft.remarks.trim() };
-    if (await saveHold(editId, patch)) { setEditId(null); setMsg({ kind: 'ok', text: `Saved changes for ${lead}.` }); }
+    if (await saveHold(editId, patch)) { setEditId(null); notify({ kind: 'ok', text: `Saved changes for ${lead}.` }); }
   }
 
   const rows = holds
@@ -102,10 +110,7 @@ It will be removed from this list. You can restore it from History.`)) return;
           </select>
         </label>
         {(selDep || flSt) && <Button variant="ghost" size="sm" onClick={() => { onSelDep(null); setFlSt(''); }}>Clear filters</Button>}
-        <div role="status" className={`ml-auto flex items-center gap-2 text-[13px] ${msg.kind === 'err' ? 'text-bad' : msg.kind === 'ok' ? 'text-ok' : 'text-muted'}`}>
-          {msg.text || 'Click a row to edit it.'}
-          {msg.undo && <Button size="sm" className="h-7" onClick={msg.undo}>Undo</Button>}
-        </div>
+        <span className="ml-auto text-[13px] text-muted">Click a row to edit it.</span>
       </div>
 
       <div className="max-h-[70vh] overflow-auto">

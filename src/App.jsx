@@ -11,7 +11,8 @@ import { exportBackup } from './lib/exportBackup.js';
 import ReservationsView from './pages/ReservationsView.jsx';
 import AppHeader from './components/layout/AppHeader.jsx';
 import Button from './components/ui/Button.jsx';
-import { PlusIcon } from './components/ui/icons.jsx';
+import { MapIcon, PlusIcon } from './components/ui/icons.jsx';
+import { useToast } from './components/ui/Feedback.jsx';
 import DepartureCard from './components/DepartureCard.jsx';
 import HoldsTable from './components/HoldsTable.jsx';
 import { HOLD_BY, stats } from './lib/slots.js';
@@ -33,14 +34,18 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [exp, setExp] = useState({ busy: false, kind: '', text: '' });
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
   async function onExport() {
-    setExp({ busy: true, kind: 'info', text: 'Preparing the Excel backup…' });
+    setExporting(true);
+    toast({ kind: 'info', text: 'Preparing the Excel backup…' });
     try {
       const r = await exportBackup();
-      setExp({ busy: false, kind: 'info', text: `Downloaded ${r.file}: ${r.destinations} destination(s), ${r.departures} departure(s), ${r.holds} hold(s), ${r.agents} agent(s), ${r.history} history row(s). Save it somewhere safe, e.g. Google Drive.` });
+      toast({ kind: 'ok', text: `Downloaded ${r.file}: ${r.destinations} destination(s), ${r.departures} departure(s), ${r.holds} hold(s), ${r.agents} agent(s), ${r.history} history row(s). Save it somewhere safe, e.g. Google Drive.` });
     } catch (e) {
-      setExp({ busy: false, kind: 'err', text: `Export failed: ${e.message}` });
+      toast({ kind: 'err', text: `Export failed: ${e.message}` });
+    } finally {
+      setExporting(false);
     }
   }
   // Theme: Light (default, warm cream) or Dark, saved in this browser.
@@ -97,7 +102,7 @@ export default function App() {
       staff={staff}
       staffOptions={HOLD_BY}
       onStaffChange={pickStaff}
-      exporting={exp.busy}
+      exporting={exporting}
       onExport={onExport}
       onHistory={() => setShowHistory((v) => !v)}
       onAgents={() => setShowAgents((v) => !v)}
@@ -114,8 +119,6 @@ export default function App() {
 
       {loadErr && <div className="banner err">{loadErr}</div>}
 
-      {exp.text && <div className={`banner ${exp.kind}`} role="status">{exp.text}</div>}
-
       {!staff && <div className="banner info">Choose your name in <b>Who are you?</b> (top right) so the History log shows who made each change.</div>}
 
       {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} onRestored={() => refresh()} />}
@@ -127,12 +130,17 @@ export default function App() {
           today={today}
           existing={pkgs}
           onClose={() => setShowImport(false)}
-          onImported={async (id, text) => { setShowImport(false); setSelDep(null); setView('dashboard'); await refresh(id); setExp({ busy: false, kind: 'info', text }); }}
+          onImported={async (id, text) => { setShowImport(false); setSelDep(null); setView('dashboard'); await refresh(id); toast({ kind: 'ok', text }); }}
         />
       )}
 
       {!loading && !pkgs.length && !loadErr && (
-        <div className="banner info">No destinations yet. Click <b>+ Import destination</b> and paste the Google Sheet link of a tracker (for example BANGKOK TRACKER).</div>
+        <section className="flex flex-col items-center rounded-xl border-2 border-dashed border-line bg-surface px-6 py-16 text-center">
+          <span className="grid size-12 place-items-center rounded-full bg-accent/10 text-accent [&_svg]:size-6"><MapIcon /></span>
+          <h2 className="m-0 mt-4 font-display text-lg font-bold text-fg">No destinations yet</h2>
+          <p className="m-0 mt-1.5 max-w-md text-sm text-muted">Import a tracker from Google Sheets (for example BANGKOK TRACKER) to load its departures and holds.</p>
+          <Button variant="primary" className="mt-5" onClick={() => setShowImport(true)}><PlusIcon />Import destination</Button>
+        </section>
       )}
 
       {!!pkgs.length && view === 'reservations' && (
@@ -150,22 +158,33 @@ export default function App() {
 
       {!!pkgs.length && view === 'dashboard' && (
         <>
-          <nav className="tabs" role="tablist">
-            {pkgs.map((p) => (
-              <button key={p.id} className="tab" role="tab" aria-selected={p.id === cur} onClick={() => { setCur(p.id); setSelDep(null); setDepEdit(null); setShowAllDeps(false); }}>
-                {p.tab}
-              </button>
-            ))}
+          <nav role="tablist" aria-label="Destinations" className="-mb-2 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
+            {pkgs.map((p) => {
+              const active = p.id === cur;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => { setCur(p.id); setSelDep(null); setDepEdit(null); setShowAllDeps(false); }}
+                  className={`-mb-px flex shrink-0 cursor-pointer items-center gap-2 border-0 border-b-2 bg-transparent px-3 py-2.5 font-body text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'border-accent text-accent' : 'border-transparent text-muted hover:border-line hover:text-fg'}`}
+                >
+                  {p.tab}
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${active ? 'bg-accent text-accent-ink' : 'bg-line text-muted'}`} title={`${p.deps.length} departure(s)`}>{p.deps.length}</span>
+                </button>
+              );
+            })}
           </nav>
 
           {pkg && (
-            <section style={{ display: 'grid', gap: 12 }}>
+            <section className="grid gap-4">
               <DestinationHeader
                 key={pkg.id}
                 pkg={pkg}
-                holdCount={holds.filter((h) => pkg.deps.some((d) => d.id === h.dep)).length}
+                holds={holds}
                 onChanged={() => refresh()}
-                onDeleted={async (n) => { setSelDep(null); await refresh(); setExp({ busy: false, kind: 'info', text: `Deleted ${n}. You can restore it from History.` }); }}
+                onDeleted={async (n) => { setSelDep(null); await refresh(); toast({ kind: 'ok', text: `Deleted ${n}. You can restore it from History.` }); }}
               />
               {depEdit && (
                 <DepartureEditor
@@ -175,7 +194,7 @@ export default function App() {
                   used={depEdit.dep ? (() => { const s = stats(depEdit.dep, holds); return s.paid + s.held; })() : 0}
                   defaults={(() => { const l = pkg.deps[pkg.deps.length - 1]; return l ? { price: l.price, blocked: l.blocked, code: l.code, itin: l.itin } : {}; })()}
                   onCancel={() => setDepEdit(null)}
-                  onSaved={async (label) => { setDepEdit(null); await refresh(pkg.id); setExp({ busy: false, kind: 'info', text: `Saved departure ${label}.` }); }}
+                  onSaved={async (label) => { setDepEdit(null); await refresh(pkg.id); toast({ kind: 'ok', text: `Saved departure ${label}.` }); }}
                 />
               )}
               <div className="deps">
