@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { configured, getStaff, setStaff } from './lib/supabase.js';
-import { deleteHold, loadAll, loadAgents, restoreHold, updateHold } from './lib/api.js';
+import { loadAll, loadAgents } from './lib/api.js';
 import { fmtD, isoStr } from './lib/parseTracker.js';
 import ImportPanel from './pages/ImportPanel.jsx';
 import AgentsPanel from './pages/AgentsPanel.jsx';
@@ -11,7 +11,12 @@ import { exportBackup } from './lib/exportBackup.js';
 import ReservationsView from './pages/ReservationsView.jsx';
 import AppHeader from './components/layout/AppHeader.jsx';
 import Button from './components/ui/Button.jsx';
-import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, daysLeft, stats } from './lib/slots.js';
+import { PlusIcon } from './components/ui/icons.jsx';
+import DepartureCard from './components/DepartureCard.jsx';
+import HoldsTable from './components/HoldsTable.jsx';
+import { HOLD_BY, stats } from './lib/slots.js';
+
+const DEP_PREVIEW = 4; // departure cards shown before "View more"
 
 export default function App() {
   const today = useMemo(() => new Date(), []);
@@ -23,6 +28,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('dashboard'); // 'dashboard' | 'reservations'
   const [depEdit, setDepEdit] = useState(null); // null | { dep } to edit | { dep: null } to add
+  const [showAllDeps, setShowAllDeps] = useState(false); // false = show only the first DEP_PREVIEW departure cards
   const [resDep, setResDep] = useState(''); // departure pre-selected when opening Reservations
   const [showImport, setShowImport] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
@@ -47,8 +53,6 @@ export default function App() {
   const [staff, setStaffState] = useState(getStaff());
   const pickStaff = (e) => { setStaff(e.target.value); setStaffState(e.target.value); };
   const [agentRows, setAgentRows] = useState([]);
-  const [hMsg, setHMsg] = useState({ kind: '', text: '' }); // messages for the Holds table
-  const [flSt, setFlSt] = useState('');
 
   const refresh = useCallback(async (focusId) => {
     try {
@@ -73,48 +77,6 @@ export default function App() {
   // Agent dropdown options; keeps a value that is no longer in the list so it is not silently lost.
   const agentOptions = (current) => (current && !agents.includes(current) ? [current, ...agents] : agents);
 
-  async function saveHold(id, patch) {
-    try { await updateHold(id, patch); await refresh(); return true; }
-    catch (err) { setHMsg({ kind: 'err', text: `Could not update the hold: ${err.message}` }); await refresh(); return false; }
-  }
-
-  async function onStatus(h, status) {
-    const prev = h.status;
-    if (!(await saveHold(h.id, { status }))) return;
-    const what = status === 'CANCEL' ? 'Released' : `Marked ${status}`;
-    setHMsg({ kind: 'ok', text: `${what}: ${h.lead} (${h.pax} pax).`, undo: () => onUndo(h, prev) });
-  }
-
-  async function onUndo(h, prev) {
-    if (await saveHold(h.id, { status: prev })) setHMsg({ kind: 'ok', text: `Undone: ${h.lead} is back to ${prev}.` });
-  }
-
-  async function onDelete(h) {
-    if (!window.confirm(`Delete ${h.lead} (${h.pax} pax)?
-
-It will be removed from this list. You can restore it from History.`)) return;
-    try {
-      await deleteHold(h.id);
-      await refresh();
-      setHMsg({ kind: 'ok', text: `Deleted: ${h.lead}.`, undo: async () => { await restoreHold(h.id); await refresh(); setHMsg({ kind: 'ok', text: `Restored: ${h.lead}.` }); } });
-    } catch (err) { setHMsg({ kind: 'err', text: `Could not delete: ${err.message}` }); }
-  }
-
-  // Inline edit of one hold row
-  const [editId, setEditId] = useState(null);
-  const [draft, setDraft] = useState({});
-  const dset = (k) => (e) => setDraft((x) => ({ ...x, [k]: e.target.value }));
-  const startEdit = (h) => {
-    setEditId(h.id);
-    setDraft({ hold_by: h.by || '', pax: h.pax, lead_name: h.lead, agent: h.agent || '', status: h.status, held_on: h.held, released_on: h.released, remarks: h.remarks });
-  };
-  async function saveEdit() {
-    const lead = draft.lead_name.trim(), pax = +draft.pax;
-    if (!lead) return setHMsg({ kind: 'err', text: 'Lead name cannot be empty.' });
-    if (!(pax >= 1)) return setHMsg({ kind: 'err', text: 'Pax must be at least 1.' });
-    const patch = { ...draft, pax, lead_name: lead, agent: draft.agent.trim().toUpperCase(), remarks: draft.remarks.trim() };
-    if (await saveHold(editId, patch)) { setEditId(null); setHMsg({ kind: 'ok', text: `Saved changes for ${lead}.` }); }
-  }
 
   if (!configured)
     return (
@@ -123,12 +85,6 @@ It will be removed from this list. You can restore it from History.`)) return;
         <div className="banner err">Supabase is not connected yet. Copy <b>.env.example</b> to <b>.env.local</b>, add the Project URL and anon key, then restart <code>npm run dev</code>.</div>
       </div>
     );
-
-  const rows = pkg
-    ? holds
-        .filter((h) => pkg.deps.some((d) => d.id === h.dep) && (!selDep || h.dep === selDep) && (!flSt || h.status === flSt))
-        .sort((a, b) => b.held.localeCompare(a.held))
-    : [];
 
   const openReserve = (depId) => { setResDep(depId || ''); setView('reservations'); window.scrollTo(0, 0); };
 
@@ -196,7 +152,7 @@ It will be removed from this list. You can restore it from History.`)) return;
         <>
           <nav className="tabs" role="tablist">
             {pkgs.map((p) => (
-              <button key={p.id} className="tab" role="tab" aria-selected={p.id === cur} onClick={() => { setCur(p.id); setSelDep(null); setDepEdit(null); }}>
+              <button key={p.id} className="tab" role="tab" aria-selected={p.id === cur} onClick={() => { setCur(p.id); setSelDep(null); setDepEdit(null); setShowAllDeps(false); }}>
                 {p.tab}
               </button>
             ))}
@@ -223,135 +179,53 @@ It will be removed from this list. You can restore it from History.`)) return;
                 />
               )}
               <div className="deps">
-                {pkg.deps.map((d) => {
-                  const s = stats(d, holds);
-                  const pill = s.avail === 0 ? ['p-full', 'SOLD OUT'] : s.avail <= 4 ? ['p-low', `${s.avail} LEFT`] : ['p-open', 'OPEN'];
-                  const w = (v) => `${s.cap ? (v / s.cap) * 100 : 0}%`;
-                  return (
-                    <div key={d.id} className={`flex flex-col overflow-hidden rounded-xl border bg-surface ${selDep === d.id ? 'border-accent ring-1 ring-accent' : 'border-line'}`}>
-                    <button className="dep flex-1 rounded-none border-0 bg-transparent shadow-none" aria-pressed={selDep === d.id} title="Show this departure's holds below" onClick={() => setSelDep(selDep === d.id ? null : d.id)}>
-                      <div className="row"><span className="date">{d.label}</span><span className={`pill ${pill[0]}`}>{pill[1]}</span></div>
-                      <div className="row"><span className="left">{daysLeft(d.date, today)} days before departure</span><span className="left">₱{d.price.toLocaleString()} / pax</span></div>
-                      <div className="bar" aria-hidden="true"><i style={{ width: w(s.paid), background: 'var(--info)' }} /><i style={{ width: w(s.held), background: 'var(--warn)' }} /></div>
-                      <div className="nums">
-                        <div><b>{d.blocked}{d.manual ? `+${d.manual}` : ''}</b>Blocked</div>
-                        <div><b>{s.paid}</b>Paid</div><div><b>{s.held}</b>On hold</div><div className={`availnum${s.avail ? '' : ' full'}`}><b>{s.avail || 'FULL'}</b>{s.avail ? 'Available' : 'No slots left'}</div>
-                      </div>
-                      <div style={{ display: 'grid', gap: 2 }}>
-                        {d.code && <span><span className="codebadge">CODE: {d.code}</span></span>}
-                        {d.itin && <span className="itin">{d.itin}</span>}
-                        {!!pkg.rooming && <span className="left">Rooming list due {fmtD(addDays(d.date, -pkg.rooming))}</span>}
-                        {d.fullBy && <span className="left">Full slot: {d.fullBy}</span>}
-                        {d.remarks && <span className="left">{d.remarks}</span>}
-                      </div>
-                    </button>
-                    <div className="flex gap-2 border-t border-line px-5 py-3">
-                      <Button variant="primary" size="sm" className="flex-1" disabled={!s.avail} title={s.avail ? 'Reserve slots on this departure' : 'Fully booked'} onClick={() => openReserve(d.id)}>{s.avail ? 'Reserve' : 'Fully booked'}</Button>
-                      <Button variant="secondary" size="sm" onClick={() => setDepEdit({ dep: d })}>Edit</Button>
-                    </div>
-                    </div>
-                  );
-                })}
-                <button className="dep dep-add" onClick={() => setDepEdit({ dep: null })}>+ Add departure</button>
+                {(showAllDeps ? pkg.deps : pkg.deps.slice(0, DEP_PREVIEW)).map((d) => (
+                  <DepartureCard
+                    key={d.id}
+                    dep={d}
+                    pkg={pkg}
+                    holds={holds}
+                    today={today}
+                    selected={selDep === d.id}
+                    onSelect={() => setSelDep(selDep === d.id ? null : d.id)}
+                    onReserve={() => openReserve(d.id)}
+                    onEdit={() => setDepEdit({ dep: d })}
+                  />
+                ))}
+                {(showAllDeps || pkg.deps.length <= DEP_PREVIEW) && (
+                <button
+                  type="button"
+                  onClick={() => setDepEdit({ dep: null })}
+                  className="flex min-h-[200px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line bg-transparent font-body text-sm font-semibold text-muted transition-colors hover:border-accent hover:text-accent"
+                >
+                  <span className="grid size-10 place-items-center rounded-full bg-surface text-accent"><PlusIcon /></span>
+                  Add departure
+                </button>
+                )}
               </div>
+              {pkg.deps.length > DEP_PREVIEW && (
+                <div className="flex justify-center">
+                  <Button variant="secondary" size="sm" onClick={() => setShowAllDeps((v) => !v)} aria-expanded={showAllDeps}>
+                    {showAllDeps ? 'Show less' : `View more (${pkg.deps.length - DEP_PREVIEW} more departure${pkg.deps.length - DEP_PREVIEW > 1 ? 's' : ''})`}
+                  </Button>
+                </div>
+              )}
             </section>
           )}
 
-          <section className="main">
-            <div className="panel">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                <h3>Holds &amp; bookings</h3>
-                <button className="btn" type="button" onClick={() => openReserve(selDep || pkg?.deps[0]?.id)}>+ New reservation</button>
-              </div>
-              <div className="filters">
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Departure
-                  <select value={selDep || ''} onChange={(e) => setSelDep(e.target.value || null)}>
-                    <option value="">All</option>
-                    {pkg?.deps.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-                  </select>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Status
-                  <select value={flSt} onChange={(e) => setFlSt(e.target.value)}>
-                    <option value="">All</option>{STATUSES.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </label>
-              </div>
-              <div className={`msg ${hMsg.kind}`} role="status" style={{ marginBottom: 8 }}>
-                {hMsg.text || 'Click a row to edit it.'}
-                {hMsg.undo && <> <button type="button" className="mini" onClick={hMsg.undo}>Undo</button></>}
-              </div>
-              <div className="tbl">
-                <table>
-                  <thead><tr><th></th><th>Hold by</th><th>Travel date</th><th>Pax</th><th>Lead name</th><th>Agent</th><th>Status</th><th>Date of hold</th><th>Hold expires</th><th>Released</th><th>Remarks</th></tr></thead>
-                  <tbody>
-                    {rows.length ? rows.map((h) => {
-                      const d = depById(h.dep);
-                      const exp = h.status === 'HOLD' ? addDays(h.held, HOLD_DAYS) : '';
-                      const expired = exp && exp < isoStr(today);
-                      const sc = h.status === 'FULL PAYMENT' ? 's-FULL' : `s-${h.status}`;
-                      if (editId === h.id)
-                        return (
-                          <tr key={h.id} className="editing" onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditId(null); }}>
-                            <td><div className="act">
-                              <button className="mini primary" onClick={saveEdit}>Save</button>
-                              <button className="mini" onClick={() => setEditId(null)}>Cancel</button>
-                            </div></td>
-                            <td><select value={draft.hold_by} onChange={dset('hold_by')}>{[...new Set(['', ...HOLD_BY, draft.hold_by])].map((b) => <option key={b} value={b}>{b || 'Agent (self)'}</option>)}</select></td>
-                            <td>{d?.label}</td>
-                            <td><input type="number" min="1" value={draft.pax} onChange={dset('pax')} style={{ width: 56 }} /></td>
-                            <td><input value={draft.lead_name} onChange={dset('lead_name')} autoFocus /></td>
-                            <td><select value={draft.agent} onChange={dset('agent')}>
-                              <option value="">—</option>
-                              {agentOptions(draft.agent).map((a) => <option key={a}>{a}</option>)}
-                            </select></td>
-                            <td><select value={draft.status} onChange={dset('status')}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></td>
-                            <td><input type="date" value={draft.held_on} onChange={dset('held_on')} /></td>
-                            <td>—</td>
-                            <td><input type="date" value={draft.released_on} onChange={dset('released_on')} disabled={draft.status !== 'CANCEL'} /></td>
-                            <td><input value={draft.remarks} onChange={dset('remarks')} /></td>
-                          </tr>
-                        );
-                      const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
-                      return (
-                        <tr key={h.id} className={`clickable ${h.status === 'CANCEL' ? 'cancel' : ''}`} title="Click to edit" onClick={() => startEdit(h)}>
-                          <td>
-                            <div className="act">
-                              <button className="mini" onClick={stop(() => startEdit(h))}>Edit</button>
-                              {h.status === 'HOLD' && <button className="mini" onClick={stop(() => onStatus(h, 'PAID-DP'))}>Mark DP</button>}
-                              {h.status === 'PAID-DP' && <button className="mini" onClick={stop(() => onStatus(h, 'FULL PAYMENT'))}>Full paid</button>}
-                              {h.status === 'CANCEL'
-                                ? <><button className="mini" onClick={stop(() => onStatus(h, 'HOLD'))}>Restore</button><button className="mini danger" onClick={stop(() => onDelete(h))}>Delete</button></>
-                                : <button className="mini" onClick={stop(() => onStatus(h, 'CANCEL'))}>Release</button>}
-                            </div>
-                          </td>
-                          <td>{h.by || <span className="note">AGENT</span>}</td><td>{d?.label}</td><td>{h.pax} PAX</td><td>{h.lead}</td><td>{h.agent}</td>
-                          <td className="st"><span className={`pill ${sc}`}>{h.status}</span></td>
-                          <td>{fmtD(h.held)}</td>
-                          <td>{!exp ? '—' : expired ? <span className="pill s-CANCEL">EXPIRED {fmtD(exp)}</span> : <span className="due">{fmtD(exp)}</span>}</td>
-                          <td>{h.released ? fmtD(h.released) : '—'}</td>
-                          <td className="rem">{h.remarks || (!h.flag && '—')}{h.flag && <span className="flag">⚠ Check: {h.flag}</span>}</td>
-                        </tr>
-                      );
-                    }) : <tr><td colSpan={11} className="note">No holds match these filters.</td></tr>}
-                  </tbody>
-                  {!!rows.length && (() => {
-                    // Paid only: PAID-DP + FULL PAYMENT. HOLD and CANCEL are not counted.
-                    const paidRows = rows.filter((h) => h.status === 'PAID-DP' || h.status === 'FULL PAYMENT');
-                    const total = paidRows.reduce((a, h) => a + h.pax, 0);
-                    return (
-                      <tfoot>
-                        <tr className="total">
-                          <td colSpan={3}>Total pax (Paid DP + Full Payment)</td>
-                          <td>{total} PAX</td>
-                          <td colSpan={7} className="note">{paidRows.length} booking(s) · Hold and Cancel not counted</td>
-                        </tr>
-                      </tfoot>
-                    );
-                  })()}
-                </table>
-              </div>
-            </div>
-          </section>
+          {pkg && (
+            <HoldsTable
+              pkg={pkg}
+              holds={holds}
+              today={today}
+              selDep={selDep}
+              onSelDep={setSelDep}
+              depById={depById}
+              agentOptions={agentOptions}
+              refresh={refresh}
+              onNewReservation={() => openReserve(selDep || pkg.deps[0]?.id)}
+            />
+          )}
         </>
       )}
     </main>
