@@ -10,6 +10,7 @@ import DepartureEditor from './components/DepartureEditor.jsx';
 import { exportBackup } from './lib/exportBackup.js';
 import ReservationsView from './pages/ReservationsView.jsx';
 import AppHeader from './components/layout/AppHeader.jsx';
+import Button from './components/ui/Button.jsx';
 import { HOLD_BY, HOLD_DAYS, STATUSES, addDays, daysLeft, stats } from './lib/slots.js';
 
 export default function App() {
@@ -129,13 +130,12 @@ It will be removed from this list. You can restore it from History.`)) return;
         .sort((a, b) => b.held.localeCompare(a.held))
     : [];
 
-  const goTo = (v) => { if (v === 'reservations') setResDep(selDep || ''); setView(v); };
+  const openReserve = (depId) => { setResDep(depId || ''); setView('reservations'); window.scrollTo(0, 0); };
 
   return (
     <>
     <AppHeader
-      view={view}
-      onNavigate={goTo}
+      onHome={() => setView('dashboard')}
       theme={theme}
       onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
       staff={staff}
@@ -149,7 +149,10 @@ It will be removed from this list. You can restore it from History.`)) return;
     />
     <main className="wrap">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="m-0 font-display text-[22px] font-bold text-fg">{view === 'reservations' ? 'Reservations' : 'Dashboard'}</h1>
+        <div className="flex items-center gap-3">
+          {view === 'reservations' && <Button variant="secondary" size="sm" onClick={() => setView('dashboard')}>← Dashboard</Button>}
+          <h1 className="m-0 font-display text-[22px] font-bold text-fg">{view === 'reservations' ? 'Reservations' : 'Dashboard'}</h1>
+        </div>
         <span className="text-[13px] text-muted">Today is {fmtD(isoStr(today))}</span>
       </div>
 
@@ -225,8 +228,8 @@ It will be removed from this list. You can restore it from History.`)) return;
                   const pill = s.avail === 0 ? ['p-full', 'SOLD OUT'] : s.avail <= 4 ? ['p-low', `${s.avail} LEFT`] : ['p-open', 'OPEN'];
                   const w = (v) => `${s.cap ? (v / s.cap) * 100 : 0}%`;
                   return (
-                    <div key={d.id} className="depwrap">
-                    <button className="dep" aria-pressed={selDep === d.id} onClick={() => setSelDep(selDep === d.id ? null : d.id)}>
+                    <div key={d.id} className={`flex flex-col overflow-hidden rounded-xl border bg-surface ${selDep === d.id ? 'border-accent ring-1 ring-accent' : 'border-line'}`}>
+                    <button className="dep flex-1 rounded-none border-0 bg-transparent shadow-none" aria-pressed={selDep === d.id} title="Show this departure's holds below" onClick={() => setSelDep(selDep === d.id ? null : d.id)}>
                       <div className="row"><span className="date">{d.label}</span><span className={`pill ${pill[0]}`}>{pill[1]}</span></div>
                       <div className="row"><span className="left">{daysLeft(d.date, today)} days before departure</span><span className="left">₱{d.price.toLocaleString()} / pax</span></div>
                       <div className="bar" aria-hidden="true"><i style={{ width: w(s.paid), background: 'var(--info)' }} /><i style={{ width: w(s.held), background: 'var(--warn)' }} /></div>
@@ -242,7 +245,10 @@ It will be removed from this list. You can restore it from History.`)) return;
                         {d.remarks && <span className="left">{d.remarks}</span>}
                       </div>
                     </button>
-                    <button className="mini depedit" onClick={() => setDepEdit({ dep: d })}>Edit departure</button>
+                    <div className="flex gap-2 border-t border-line px-5 py-3">
+                      <Button variant="primary" size="sm" className="flex-1" disabled={!s.avail} title={s.avail ? 'Reserve slots on this departure' : 'Fully booked'} onClick={() => openReserve(d.id)}>{s.avail ? 'Reserve' : 'Fully booked'}</Button>
+                      <Button variant="secondary" size="sm" onClick={() => setDepEdit({ dep: d })}>Edit</Button>
+                    </div>
                     </div>
                   );
                 })}
@@ -255,7 +261,7 @@ It will be removed from this list. You can restore it from History.`)) return;
             <div className="panel">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                 <h3>Holds &amp; bookings</h3>
-                <button className="btn" type="button" onClick={() => { setResDep(selDep || pkg?.deps[0]?.id || ''); setView('reservations'); }}>+ New reservation</button>
+                <button className="btn" type="button" onClick={() => openReserve(selDep || pkg?.deps[0]?.id)}>+ New reservation</button>
               </div>
               <div className="filters">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Departure

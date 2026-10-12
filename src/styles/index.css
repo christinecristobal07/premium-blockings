@@ -83,8 +83,6 @@ body{margin:0}
 .or{font-size:12px;color:var(--muted);align-self:center}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .mini.danger{color:var(--bad);border-color:var(--bad)}
-.depwrap{display:grid;gap:6px;align-content:start}
-.depwrap .depedit{justify-self:end}
 .dep-add{place-items:center;align-content:center;color:var(--accent);font-weight:600;font-size:15px;border-style:dashed;min-height:200px}
 /* Package code: red so agents always check it when holding */
 .codebadge{display:inline-block;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.03em;color:var(--bad);background:var(--bad-bg);border:1px solid var(--bad);border-radius:5px;padding:2px 8px;white-space:nowrap}

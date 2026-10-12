@@ -1,40 +1,19 @@
 import Button from '../ui/Button.jsx';
 import { DownloadIcon, HistoryIcon, MoonIcon, PlusIcon, SunIcon, UserIcon, UsersIcon } from '../ui/icons.jsx';
 
-const NAV = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'reservations', label: 'Reservations' },
-];
-
-// Sticky top bar: brand, main nav, and app-wide actions.
-export default function AppHeader({ view, onNavigate, theme, onToggleTheme, staff, staffOptions, onStaffChange, exporting, onExport, onHistory, onAgents, onImport }) {
+// Sticky top bar: brand (goes to the dashboard) and app-wide actions.
+export default function AppHeader({ onHome, theme, onToggleTheme, staff, staffOptions, onStaffChange, exporting, onExport, onHistory, onAgents, onImport }) {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-x-6 gap-y-2 px-[clamp(16px,2.5vw,40px)] py-2.5">
-        <div className="flex items-center gap-2.5">
+        <button type="button" onClick={onHome} title="Go to dashboard" className="flex cursor-pointer items-center gap-2.5 border-0 bg-transparent p-0 text-left">
           <span className="grid size-8 place-items-center rounded-md bg-accent font-display text-sm font-bold text-accent-ink">G</span>
           <div className="leading-tight">
             <div className="font-display text-[15px] font-bold text-fg">Premium Blockings</div>
             <div className="text-[11px] font-semibold tracking-wider text-muted uppercase">Gladex Portal</div>
           </div>
-        </div>
+        </button>
 
-        <nav aria-label="Main" className="flex items-center gap-1">
-          {NAV.map((n) => {
-            const active = view === n.id;
-            return (
-              <button
-                key={n.id}
-                type="button"
-                aria-current={active ? 'page' : undefined}
-                onClick={() => onNavigate(n.id)}
-                className={`h-9 cursor-pointer rounded-md border-0 px-3 text-sm font-semibold transition-colors ${active ? 'bg-accent/10 text-accent' : 'bg-transparent text-muted hover:bg-bg hover:text-fg'}`}
-              >
-                {n.label}
-              </button>
-            );
-          })}
-        </nav>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onHistory}><HistoryIcon />History</Button>
